@@ -1,0 +1,614 @@
+openapi: 3.0.1
+info:
+  title: Light Control API
+  description: >
+   The Light control API allows users to send light commands to a collection of streetlights and groups in a simple but powerful and flexible way.<br/>To start working with this API we recommend:
+     * Check the `light-control-command` endpoint and its request model to understand how to send commands. We provide several examples from simple commands to fully customized commands. Most of the fields have a default value to simplify calls. All default values are documented in this model definition.
+     * Check the `streetlight` model and endpoints to understand how to retrieve available streetlights to target commands.
+     * The `override-command` is only for maintenance tasks.
+     
+    All endpoints are secured by using an OAuth2 system. Ask your provider for credentials to integrate your own service.
+  version: 1.0.0
+servers:
+- url: /v1
+tags:
+- name: Commands
+  description: Command endpoints to control directly or inderectly light levels in a flexible way.
+- name: Streetlights
+  description: Retrieval of Fiware-compatible streetlight entitites.
+- name: Streetlight Groups
+  description: Retrieval of Fiware-compatible streetlight group entitites. A group consist in a collection of streetlights. Its main goal is to simplify mass light control operations.
+paths:
+  /light-control-command:
+    post:
+      tags:
+      - Commands
+      summary: Regular light control command.
+      operationId: lightControlCommand
+      parameters:
+      - name: Light-Control-Service
+        description: Optional header to specify the source service applying this command.
+        in: header
+        schema:
+          type: string
+      requestBody:
+        description: Light control command object.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LightControlCommand'
+            examples:
+              setSimpleLevel:
+                summary: Set light level.
+                description: Set the light level for a single streetlight with default values for most field options.
+                value:
+                  entities: 
+                  - id: "streetlight01"
+                  state:
+                    value: 50
+
+              setMultipleLevel:
+                summary: Set multiple light level.
+                description: Set light level for a collection of streetlights.
+                value:
+                  entities: 
+                  - id: "streetlight01"
+                  - id: "streetlight02"
+                  - id: "streetlight03"
+                  state:
+                    value: 50
+
+              setNearOf:
+                summary: Set light level near a point.
+                description: Set the light level for all streetlights that are closer to 200 meters of a provided GPS coordinates.
+                value:
+                  state:
+                    value: 100
+                  geographicalFilter:
+                  - maxDistance: 200
+                    coordinates: [61.4839697, 23.7899251]
+
+              resume:
+                summary: Resume levels.
+                description: Resume the light level to the control program default level for a group.
+                value:
+                  entities: 
+                  - type: "streetlightgroup"
+                    id: "streetlightGroup01"
+
+              operation:
+                summary: Custom operation.
+                description: The light level of the streetlight will be set to the maximum value between its current level and the provided one (80% in this example) until the expiration time.
+                value:
+                  entities: 
+                  - id: "streetlight01"
+                  state:
+                    value: 80
+                  operation: "max"
+                  expiration: "2020-10-25T23:30:00.00Z"
+
+              full:
+                summary: Example with all options applied.
+                description: In this case we are notifying a "sensor-like" boolean event that might trigger internal light level modifications according to their active control programs.<br>The affected entities will be a streetlight, a group and also all streetlights that match any rectangle box referenced in the geographical filters.
+                value:
+                  entities: 
+                  - type: "streetlight"
+                    id: "streetlight01"
+                  - type: "streetlightgroup"
+                    id: "streetlightGroup01"
+                  state:
+                    name: "booleanState"
+                    value: "true"
+                  expiration: "2020-10-25T23:30:00.00Z"
+                  geographicalFilter:
+                  - geoRelationship: "coveredBy"
+                    geometry: "box"
+                    coordinates: [61.4839697, 23.7899251, 61.47221, 23.79219]
+                  - geoRelationship: "coveredBy"
+                    geometry: "box"
+                    coordinates: [61.703443, 23.8166, 61.71067, 23.81515]
+      responses:
+        204:
+          description: Successful command.
+        400:
+          $ref: '#/components/responses/400Validation'
+        404:
+          $ref: '#/components/responses/404StreetlightNotFound'
+        500:
+          $ref: '#/components/responses/500InternalError'
+
+  /override-command:
+    post:
+      tags:
+      - Commands
+      summary: Override command (only for maintenance).
+      operationId: overrideCommand
+      requestBody:
+        description: Override command object.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverrideCommand'
+            examples:
+              override:
+                summary: Override command.
+                description: Overrides the light level of a streetlight.
+                value:
+                  entities: 
+                  - id: "streetlight01"
+                  lightLevel: 50
+      responses:
+        204:
+          description: Successful command.
+        400:
+          $ref: '#/components/responses/400Validation'
+        404:
+          $ref: '#/components/responses/404StreetlightNotFound'
+        500:
+          $ref: '#/components/responses/500InternalError'
+      security:
+      - light_control_auth:
+        - maintenance
+
+  /streetlights:
+    get:
+      tags:
+      - Streetlights
+      summary: Retrieve the list of all streetlights.
+      description: The returned list is limited to 1000 elements by default. Use the limit and offset arguments to paginate results.
+      operationId: listStreetlights
+      parameters:
+      - $ref: '#/components/parameters/offsetParameter'
+      - $ref: '#/components/parameters/limitParameter'
+      responses:
+        200:
+          description: Successful operation.
+          headers:
+            Total-Count:
+              $ref: '#/components/headers/totalCountHeader'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Streetlight'
+        400:
+          $ref: '#/components/responses/400Pagination'
+
+  /streetlights/{streetlightId}:
+    get:
+      tags:
+      - Streetlights
+      summary: Find a streetlight by its identifier.
+      description: Returns a single streetlight.
+      operationId: getStreetlight
+      parameters:
+      - name: streetlightId
+        in: path
+        description: Identifier of the streetlight to return.
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          description: Successful operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Streetlight'
+        404:
+          $ref: '#/components/responses/404StreetlightNotFound'
+
+  /streetlightgroups:
+    get:
+      tags:
+      - Streetlight Groups
+      summary: Retrieve the list of all streetlight groups.
+      description: The returned list is limited to 1000 elements by default. Use the limit and offset arguments to paginate results.
+      operationId: listStreetlightGroups
+      parameters:
+      - $ref: '#/components/parameters/offsetParameter'
+      - $ref: '#/components/parameters/limitParameter'
+      responses:
+        200:
+          description: Successful operation.
+          headers:
+            Total-Count:
+              $ref: '#/components/headers/totalCountHeader'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StreetlightGroup'
+        400:
+          $ref: '#/components/responses/400Pagination'
+
+  /streetlightgroups/{streetlightGroupId}:
+    get:
+      tags:
+      - Streetlight Groups
+      summary: Find a streetlight group by its identifier.
+      description: Returns a single streetlight group.
+      operationId: getStreetlightGroup
+      parameters:
+      - name: streetlightGroupId
+        in: path
+        description: Identifier of the streetlight group to return.
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          description: Successful operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreetlightGroup'
+        404:
+          $ref: '#/components/responses/404StreetlightGroupNotFound'
+
+components:
+  schemas:
+    LightControlCommand:
+      type: object
+      description: Payload object for a light-control-command request.
+      properties:
+        entities:
+          type: array
+          description: Collection of entities targeted by the light command. If empty all available entities are referenced.
+          items:
+            $ref: '#/components/schemas/ResourceReference'
+        state:
+          description: Usually a light level but you can also send other kind of signals to the system (boolean, string tags or sensor values). It is up to the light control system what actions will be trigger depending on the user and service source of the command.<br/>If not provided the command is interpreted as a cancellation of any light control command on the targeted entities.
+          type: object
+          properties:
+            name:
+              type: string
+              description: >
+                state name:
+                 * `levelState` - [0-100]% light level.
+                 * `stringState` - Custom label to notify a predefined light state.
+                 * `booleanState` - [false|true] sensor state.
+                 * `numberState` - Sensor numeric value.
+              default: levelState
+              enum:
+              - levelState
+              - stringState
+              - booleanState
+              - numberState
+            value:
+              type: string
+              description: A value compatible with the state name implicit type.
+        operation:
+          type: string
+          description: >
+            operation name:
+             * `set` - Sets the absolute light level.
+             * `max` - Maximum between the provided state and the current state. This operation shall have the effect of increasing the current state.
+             * `min` - Minimum between the provided state and the current state. This operation shall have the effect of decreasing the current state.
+             * `add` - Adds the provided state to the current state.
+             * `sub` - Subtracts the provided state from the current state.
+             * `mul` - Multiplies the new state by the current state.
+          default: set
+          enum:
+          - set
+          - max
+          - min
+          - add
+          - sub
+          - mul
+        expiration:
+          type: string
+          description: Expiration time of the effects of this command in ISO8601 format. If not provided it will be auto-set to two hours from now.
+          format: date-time
+          default: Two hours from now.
+        geographicalFilter:
+          type: array
+          description: Collection of geographical filters to include additional targets to the command. This is an additive (OR) filter, and it is compatible with also including additional references in the `entities` field.
+          items:
+            $ref: '#/components/schemas/GeographicalFilter'
+
+    OverrideCommand:
+      description: Payload object for a override-command request.
+      properties:
+        entities:
+          type: array
+          description: Collection of entities targeted by the override command. If empty, all available entities are referenced.
+          items:
+            $ref: '#/components/schemas/ResourceReference'
+        lightLevel:
+          type: integer
+          description: Overridden light level. If empty the targeted entities will resume to normal operation.
+          format: int32
+          minimum: 0
+          maximum: 100
+        expiration:
+          type: string
+          description: Expiration time of the effects of this command in ISO8601 format. If not provided it will be auto-set to two hours from now.
+          format: date-time
+          default: Two hours from now.
+        geographicalFilter:
+          type: array
+          description: Collection of geographical filters to include additional targets to the command. This is an additive (OR) filter, and it is compatible with also including additional references in the `entities` field.
+          items:
+            $ref: '#/components/schemas/GeographicalFilter'
+
+    Streetlight:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Streetlight unique identifier.
+          example: Streelight01
+        type:
+          type: string
+          description: Entity type. In this case it is always `streetlight`.
+          default: streetlight
+          enum:
+            - streetlight
+        illuminanceLevel:
+          type: object
+          description: Current streetlight light level [0-100]%. If negative, it means that the device have an unknown level (maybe a DALI, dimming or communication error).
+          properties:
+            type:
+              type: string
+              default: Number
+              enum:
+                - Number
+            value:
+              type: string
+              description: Light level value.
+              example: 80
+            metadata:
+              $ref: '#/components/schemas/TimestampMetadata'
+
+        currentWorkingMode:
+          type: object
+          description: Current working mode of the streetlight.
+          properties:
+            type:
+              type: string
+              default: Text
+              enum:
+                - Text
+            value:
+              type: string
+              description: >
+                working mode type:
+                 * `automatic` - The streetlight is currently switching on/off in automatic mode (e.g. using an Astroclock)
+                 * `manual` - The streetlight is currently switched on/off due override intervention.
+              enum:
+                - automatic
+                - manual
+            metadata:
+              $ref: '#/components/schemas/TimestampMetadata'
+            
+    StreetlightGroup:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Streetlight group unique identifier.
+          example: StreelightGroup01
+        type:
+          type: string
+          description: Entity type. In this case it is always `streetlightgroup`.
+          enum:
+            - streetlightgroup
+        refStreetlight:
+          type: object
+          description: Collection of streetlight identifiers that belongs to this group.
+          properties:
+            type:
+              type: string
+              default: Array
+              enum:
+                - Array
+            value:
+              type: array
+              items:
+                type: string
+              example: ["Streelight01", "Streelight02"]
+
+    ErrorResponse:
+      type: object
+      description: Structured response message when the system detects an error in the request
+      properties:
+        key:
+          type: string
+          description: "Key to identify the error type. Some examples are: parameterMissing, parameterValueNotValid, payloadError, resourceNotFound among others."
+        description:
+          type: string
+          description: More detailed explanation about the error. For instance, the parameter that is not valid.
+        references:
+          description: The references of the resources that are causing the error.
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceReference'
+
+    ResourceReference:
+      type: object
+      description: Describes the reference to a given entity (streetlight, group) by its type and identifier parts.
+      required: 
+        - id
+      properties:
+        type:
+          type: string
+          description: Entity type.
+          default: streetlight
+          enum:
+            - streetlight
+            - streetlightgroup
+        id:
+          type: string
+          description: Entity identifier.
+
+    GeographicalFilter:
+      type: object
+      description: Establish a geographical shape to look for entities that are compatible with the provide rules.
+      required:
+        - coordinates
+      properties:
+        geoRelationship:
+          type: string
+          description: >
+            relationship name:
+             * `near` - The near relationship means that matching entities must be located at a certain threshold distance to the reference geometry. One of `maxDistance` or `minDistance` values are mandatory in this relationship. You can also provide both.
+             * `coveredBy` - Denotes that matching entities are those that exist entirely within the reference geometry. When resolving a query of this type, the border of the shape must be considered to be part of the shape.
+             * `intersects` - Denotes that matching entities are those intersecting with the reference geometry.
+             * `equals` - The geometry associated to the position of matching entities and the reference geometry must be exactly the same.
+             * `disjoint` - Denotes that matching entities are those not intersecting with the reference geometry.
+          default: near
+          enum:
+          - near
+          - coveredBy
+          - intersects
+          - equals
+          - disjoint
+        maxDistance:
+          type: number
+          format: int32
+          description: Expresses, in meters, the maximum distance at which matching entities must be located when defining a `near` relationship.
+        minDistance:
+          type: number
+          format: int32
+          description: Expresses, in meters, the minimum distance at which matching entities must be located when defining a `near` relationship.
+        geometry:
+          type: string
+          description: >
+            geometry name:
+             * `point` - Defines a point on the Earth surface.
+             * `line` - Defines a polygonal line.
+             * `polygon` - Defines a polygon.
+             * `box` - Defines a bounding box.
+          default: point
+          enum:
+          - point
+          - line
+          - polygon
+          - box
+        coordinates:
+          type: array
+          description: >
+            Pairs (latitude, longitude) of geographical coordinates in accordance with the geometry specified and the rules mandated by the Simple Location Format:
+             * `point` - It must contain a pair of WGS-84 geo-coordinates.
+             * `line` - It must contain a list of pairs of WGS-84 geo-coordinates.
+             * `polygon` - It is composed by at least four pairs of WGS-84 geo-coordinates.
+             * `box` - It is composed by two pairs of WGS-84 geo-coordinates.
+          items:
+            type: number
+            format: double
+
+    TimestampMetadata:
+      type: object
+      description: Fiware-like metadata to inform about the last time the related field value has been updated.
+      properties:
+        timestamp:
+          type: object
+          properties:
+            type:
+              type: string
+              default: DateTime
+              enum:
+                - DateTime
+            value:
+              type: string
+              description: Actual value with the timestamp in ISO8601 format.
+              format: date-time
+
+  parameters:
+    offsetParameter:
+      name: offset
+      in: query
+      description: Establishes the offset from where entities are retrieved (0-based).
+      required: false
+      schema:
+        type: integer
+        format: int64
+        default: 0
+        minimum: 0
+    limitParameter:
+      name: limit
+      in: query
+      description: Limits the number of entities to be retrieved.
+      required: false
+      schema:
+        type: integer
+        format: int32
+        default: 1000
+        minimum: 1
+        maximum: 1000
+
+  responses:
+    400Validation:
+      description: Error validating the request payload object.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: 
+            key: payloadError
+            description: The light level must be in a range of [0-100]
+    400Pagination:
+      description: Error validating the pagination arguments.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: 
+            key: parameterValueNotValid
+            description: The offset parameters must be 0 or a positive integer.
+    404StreetlightNotFound:
+      description: At least one of the provided entities doesn't exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: 
+            key: resourceNotFound 
+            description: Referenced entity not found.
+            references:
+              - id: streetlight01
+                type: streetlight
+    404StreetlightGroupNotFound:
+      description: At least one of the provided entities doesn't exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: 
+            key: resourceNotFound 
+            description: Referenced entity not found.
+            references:
+              - id: group01
+                type: streetlightgroup
+    500InternalError:
+      description: The backend service can't handle the request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: 
+            key: internalError
+            description: Backend is busy.
+  headers:
+     totalCountHeader:
+        description: Total number of entities that matches the request (for pagination purposes).
+        schema:
+          type: integer
+          format: int64
+
+  securitySchemes:
+    light_control_auth:
+      type: oauth2
+      description: This API uses OAuth 2 with the password flow.
+      flows:
+        password:
+          tokenUrl: /oauth/passwd
+          scopes:
+            light_control: Retrieve entities and execute light control commands.
+            maintenance: Execute override commands.
+
