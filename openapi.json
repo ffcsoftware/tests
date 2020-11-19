@@ -2,8 +2,8 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Light Control API",
-    "description": "The Light control API allows users to send light commands to a collection of streetlights and groups in a simple but powerful and flexible way.<br/>To start working with this API we recommend:\n  * Check the `light-control-command` endpoint and its request model to understanand how to send commands. We provide several examples from simple commands to fully customized commands. Most of the fields have a default value to simplify calls. All default values are documented in this model definition.\n  * Check the `streetlight` model and endpoints to understand how to retrieve available streetlights to target commands.\n  * The `override-command` is only for maintenance tasks.\n  \n All endpoints are secured by using an OAuth2 system. Ask your provider for credentials to integrate your own service.\n",
-    "version": "1.0.0"
+    "description": "The Light control API allows users to send light commands to a collection of streetlights and groups in a simple but powerful and flexible way.<br/>To start working with this API we recommend:\n  * Check the `light-control-command` endpoint and its request model to understand how to send commands. We provide several examples from simple commands to fully customized commands. Most of the fields have a default value to simplify calls. All default values are documented in this model definition.\n  * Check the `streetlight` model and endpoints to understand how to retrieve available streetlights to target commands.\n  * The `override-command` is only for maintenance tasks.\n  \n All endpoints are secured by using an OAuth2 system. Ask your provider for credentials to integrate your own service.\n",
+    "version": "1.0.1"
   },
   "servers": [
     {
@@ -17,11 +17,11 @@
     },
     {
       "name": "Streetlights",
-      "description": "Retrieval of Fiware-compatible streetlight entitites."
+      "description": "Retrieval of streetlight entitites."
     },
     {
       "name": "Streetlight Groups",
-      "description": "Retrieval of Fiware-compatible streetlight group entitites. A group consist in a collection of streetlights. Its main goal is to simplify mass light control operations."
+      "description": "Retrieval of streetlight group entitites. A group consist in a collection of streetlights. Its main goal is to simplify mass light control operations."
     }
   ],
   "paths": {
@@ -199,7 +199,7 @@
         "tags": [
           "Commands"
         ],
-        "summary": "Override command (only for maintenancers).",
+        "summary": "Override command (only for maintenance).",
         "operationId": "overrideCommand",
         "requestBody": {
           "description": "Override command object.",
@@ -412,13 +412,13 @@
         "properties": {
           "entities": {
             "type": "array",
-            "description": "Collection of entities targetted by the light command. If empty all available entities are referrenced.",
+            "description": "Collection of entities targeted by the light command. If empty all available entities are referenced.",
             "items": {
               "$ref": "#/components/schemas/ResourceReference"
             }
           },
           "state": {
-            "description": "Usually a light level but you can also send other kind of signals to the system (boolean, string tags or sensor values). It is up to the light control system what actions will be trigger depending on the user and service source of the command.<br/>If not provided the command is interpreted as a cancellation of any light control command on the targeted entities.",
+            "description": "Usually a target light level but you can also send other kind of signals to the system (boolean, string tags or sensor values). It is up to the light control system what actions will be trigger depending on the user and service source of the command.<br/>If not provided the command is interpreted as a cancellation of any light control command on the targeted entities.",
             "type": "object",
             "properties": {
               "name": {
@@ -440,7 +440,7 @@
           },
           "operation": {
             "type": "string",
-            "description": "operation name:\n * `set` - Sets the absolute light level.\n * `max` - Maximum between the provided state and the current state. This operation shall have the effect of increasing the current state.\n * `min` - Minimun between the provided state and the current state. This operation shall have the effect of decreasing the current state.\n * `add` - Adds the provided state to the current state.\n * `sub` - Substracts the provided state from the current state.\n * `mul` - Multiplies the new state by the current state.\n",
+            "description": "operation name:\n * `set` - Sets the absolute light level.\n * `max` - Maximum between the provided state and the current state. This operation shall have the effect of increasing the current state.\n * `min` - Minimum between the provided state and the current state. This operation shall have the effect of decreasing the current state.\n * `add` - Adds the provided state to the current state.\n * `sub` - Subtracts the provided state from the current state.\n * `mul` - Multiplies the new state by the current state.\n",
             "default": "set",
             "enum": [
               "set",
@@ -453,9 +453,9 @@
           },
           "expiration": {
             "type": "string",
-            "description": "Expiration time of the effects of this command in ISO8601 format. If not provided it will be auto-set to two hours from now.",
+            "description": "Expiration time of the effects of this command in ISO8601 format. If omitted, default expiration period will be used.",
             "format": "date-time",
-            "default": "Two hours from now."
+            "default": "An expiration period according to configuration in the targets, for example 2 hours but often as agreed by the city."
           },
           "geographicalFilter": {
             "type": "array",
@@ -471,23 +471,23 @@
         "properties": {
           "entities": {
             "type": "array",
-            "description": "Collection of entities targetted by the override command. If empty, all available entities are referrenced.",
+            "description": "Collection of entities targeted by the override command. If empty, all available entities are referenced.",
             "items": {
               "$ref": "#/components/schemas/ResourceReference"
             }
           },
           "lightLevel": {
             "type": "integer",
-            "description": "Overriden light level. If empty the targeted entities will resume to normal operation.",
+            "description": "Overridden light level. If empty the targeted entities will resume to normal operation.",
             "format": "int32",
             "minimum": 0,
             "maximum": 100
           },
           "expiration": {
             "type": "string",
-            "description": "Expiration time of the effects of this command in ISO8601 format. If not provided it will be auto-set to two hours from now.",
+            "description": "Expiration time of the effects of this command in ISO8601 format. If omitted, default expiration period will be used.",
             "format": "date-time",
-            "default": "Two hours from now."
+            "default": "An expiration period according to configuration in the targets, for example 2 hours but often as agreed by the city."
           },
           "geographicalFilter": {
             "type": "array",
@@ -516,7 +516,7 @@
           },
           "illuminanceLevel": {
             "type": "object",
-            "description": "Current streetlight light level [0-100]%. If negative, it means that the device have an unknown level (maybe a DALI, dimming or communication error).",
+            "description": "Current streetlight light level [0-100]%. If negative, it means that the device has received non-valid value from a DALI driver.",
             "properties": {
               "type": {
                 "type": "string",
@@ -548,7 +548,7 @@
               },
               "value": {
                 "type": "string",
-                "description": "working mode type:\n * `automatic` - The streetlight is currently switching on/off in automatic mode (e.g. using an Astroclock)\n * `manual` - The streetlight is currently switched on/off due override intervention.\n",
+                "description": "working mode type:\n * `automatic` - The streetlight is currently operating in normal mode (e.g. using an Astroclock).\n * `manual` - The streetlight is currently in a manual mode and will only accept override commands.\n",
                 "enum": [
                   "automatic",
                   "manual"
@@ -646,7 +646,7 @@
       },
       "GeographicalFilter": {
         "type": "object",
-        "description": "Establish a geographical shape to look for entitites that are compatible with the provide rules.",
+        "description": "Establish a geographical shape to select target streetlights.",
         "required": [
           "coordinates"
         ],
@@ -696,7 +696,7 @@
       },
       "TimestampMetadata": {
         "type": "object",
-        "description": "Fiware-like metadata to inform about the last time the related field value has been updated.",
+        "description": "Metadata to inform about the last time the related field value has been updated.",
         "properties": {
           "timestamp": {
             "type": "object",
